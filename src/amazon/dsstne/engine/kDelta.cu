@@ -30,6 +30,23 @@ void GetKDeltaGpuData()
     RTERROR(status, "cudaMemcpyFromSymbol: GetKDeltaGpuData copy From cData failed");
 }
 
+
+template<typename T>
+inline __device__ NNFloat kScale(const T a) {
+    return a;
+}
+
+template<>
+inline __device__ NNFloat kScale(unsigned char a) {
+    return (NNFloat)a * (NNFloat)(1.0/256.0);;
+}
+
+template<>
+inline __device__ NNFloat kScale(char a) {
+    return (NNFloat)a * (NNFloat)(1.0/128.0);;
+}
+
+
 template<typename T>
 __global__ void
 LAUNCH_BOUNDS()
@@ -41,11 +58,12 @@ kCalculateSigmoidOutputDelta_kernel(uint32_t position, uint32_t batch, uint32_t 
         uint64_t uOffset        = blockIdx.x * stride;
         uint64_t dOffset        = (cData._bShuffleIndices ? cData._pShuffleIndex[position + blockIdx.x] : position + blockIdx.x) * stride;
         NNFloat a               = pUnit[uOffset + pos];
-        NNFloat t               = pData[dOffset + pos];
+        NNFloat t               = kScale(pData[dOffset + pos]);
         pDelta[uOffset + pos]   = (a - t) * a * ((NNFloat)1.0 - a);      
     }
 }
 
+#if 0
 template<>
 __global__ void
 LAUNCH_BOUNDS()
@@ -77,6 +95,8 @@ kCalculateSigmoidOutputDelta_kernel(uint32_t position, uint32_t batch, uint32_t 
         pDelta[uOffset + pos]   = (a - t) * a * ((NNFloat)1.0 - a);      
     }
 }
+
+#endif
 
 template<typename T>
 __global__ void

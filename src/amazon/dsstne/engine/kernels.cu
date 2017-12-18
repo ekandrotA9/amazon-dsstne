@@ -63,9 +63,9 @@ LAUNCH_BOUNDS()
 kClearUnit_kernel(NNFloat* pUnit, NNFloat* pBias, uint32_t stride, uint64_t size)
 {
     uint64_t pos                = blockIdx.x * blockDim.x + threadIdx.x;
-    uint32_t bpos               = pos % stride;
     if (pos < size)
     {
+        uint32_t bpos           = pos % stride;
         pUnit[pos]              = pBias[bpos];
     }
 }
@@ -85,9 +85,9 @@ LAUNCH_BOUNDS()
 kClearDualSourceUnit_kernel(NNFloat* pUnit, NNFloat* pBias1, NNFloat* pBias2, uint32_t stride, uint32_t size)
 {
     uint64_t pos                = blockIdx.x * blockDim.x + threadIdx.x;
-    uint32_t bpos               = pos % stride;
     if (pos < size)
     {
+        uint32_t bpos           = pos % stride;
         pUnit[pos]              = pBias1[bpos] + pBias2[bpos];
     }
 }
@@ -108,9 +108,9 @@ LAUNCH_BOUNDS()
 kClearTripleSourceUnit_kernel(NNFloat* pUnit, NNFloat* pBias1, NNFloat* pBias2, NNFloat* pBias3, uint32_t stride, uint32_t size)
 {
     uint64_t pos                = blockIdx.x * blockDim.x + threadIdx.x;
-    uint32_t bpos               = pos % stride;
     if (pos < size)
     {
+        uint32_t bpos           = pos % stride;
         pUnit[pos]              = pBias1[bpos] + pBias2[bpos] + pBias3[pos];
     }
 }
@@ -129,9 +129,9 @@ LAUNCH_BOUNDS()
 kClearQuadSourceUnit_kernel(NNFloat* pUnit, NNFloat* pBias1, NNFloat* pBias2, NNFloat* pBias3, NNFloat* pBias4, uint32_t stride, uint32_t size)
 {
     uint64_t pos                = blockIdx.x * blockDim.x + threadIdx.x;
-    uint32_t bpos               = pos % stride;
     if (pos < size)
     {
+        uint32_t bpos           = pos % stride;
         pUnit[pos]              = pBias1[bpos] + pBias2[bpos] + pBias3[pos] + pBias4[pos];
     }
 }
@@ -354,9 +354,9 @@ LAUNCH_BOUNDS()
 kAddBias_kernel(NNFloat* pUnit, NNFloat* pBias, uint32_t stride, uint32_t size)
 {
     uint32_t pos                = blockIdx.x * blockDim.x + threadIdx.x;
-    uint32_t bpos               = pos % stride;
     if (pos < size)
     {
+        uint32_t bpos           = pos % stride;
         pUnit[pos]             += pBias[bpos];
     }
 }
@@ -377,9 +377,9 @@ LAUNCH_BOUNDS()
 kAddDualBias_kernel(NNFloat* pUnit, NNFloat* pBias1, NNFloat* pBias2, uint32_t stride, uint32_t size)
 {
     uint64_t pos                = blockIdx.x * blockDim.x + threadIdx.x;
-    uint32_t bpos               = pos % stride;
     if (pos < size)
     {
+        uint32_t bpos           = pos % stride;
         pUnit[pos]             += pBias1[bpos] + pBias2[bpos];
     }
 }
@@ -398,9 +398,9 @@ LAUNCH_BOUNDS()
 kAddTripleBias_kernel(NNFloat* pUnit, NNFloat* pBias1, NNFloat* pBias2, NNFloat* pBias3, uint32_t stride, uint32_t size)
 {
     uint64_t pos                = blockIdx.x * blockDim.x + threadIdx.x;
-    uint32_t bpos               = pos % stride;
     if (pos < size)
     {
+        uint32_t bpos           = pos % stride;
         pUnit[pos]             += pBias1[bpos] + pBias2[bpos] + pBias3[pos];
     }
 }
