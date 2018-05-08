@@ -2954,15 +2954,11 @@ bool LoadNNLayerDescriptorNetCDF(const string& fname, netCDF::NcFile& nc, uint32
             // did this layer have BatchNorm data?
             if (ld._attributes & NNLayer::Attributes::BatchNormalization)
             {
-                NcDim bnDim   = nc.getDim(lstring + "bnNDim");
-                if (bnDim.getSize() != ld._Nx)
-                {
-                    throw NcException("NcException", "NNLayer::NNLayer: BatchNorm size does match Nx in NetCDF input file " + fname, __FILE__, __LINE__);
-                }
-                NcVar scaleBNVar    = nc.getVar(lstring + "scaleBN");
-                NcVar biasBNVar     = nc.getVar(lstring + "biasBN");
-                NcVar runningMeanBNVar    = nc.getVar(lstring + "runningMeanBN");
-                NcVar runningVarianceBNVar    = nc.getVar(lstring + "runningVarianceBN");
+                NcDim bnDim                 = nc.getDim(lstring + "bnDim");
+                NcVar scaleBNVar            = nc.getVar(lstring + "scaleBN");
+                NcVar biasBNVar             = nc.getVar(lstring + "biasBN");
+                NcVar runningMeanBNVar      = nc.getVar(lstring + "runningMeanBN");
+                NcVar runningVarianceBNVar  = nc.getVar(lstring + "runningVarianceBN");
 
                 ld._vScaleBN.resize(bnDim.getSize());
                 ld._vBiasBN.resize(bnDim.getSize());
@@ -3200,9 +3196,9 @@ bool NNLayer::WriteNetCDF(NcFile& nc, uint32_t index)
         // append the BatchNorm data, if needed
         if (_bBatchNormalization)
         {
-            vector<NNFloat>  bndata(_localStride);
-            size_t bytes = _localStride * sizeof(NNFloat);
-            NcDim bnDim   = nc.addDim(lstring + "bnNDim", _localStride);
+            vector<NNFloat>  bndata(_strideBN);
+            size_t bytes = _strideBN * sizeof(NNFloat);
+            NcDim bnDim   = nc.addDim(lstring + "bnDim", _strideBN);
 
             cudaMemcpy(bndata.data(), _pbScaleBN->_pDevData, bytes, cudaMemcpyDeviceToHost);
             NcVar scaleVar  = nc.addVar(lstring + "scaleBN", "float", bnDim.getName());
