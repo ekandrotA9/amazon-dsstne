@@ -911,9 +911,9 @@ void NNLayer::ForwardPropagateFullyConnected(uint32_t position, uint32_t batch, 
             // Perform batch normalization if active
             if (_bBatchNormalization)
             {
-               if (bTraining) {
-                    float alpha = 1;
-                    float beta = 0;
+                float alpha = 1;
+                float beta = 0;
+                if (bTraining) {
                     cudnnStatus_t cudnnStatus = cudnnBatchNormalizationForwardTraining(
                             getGpu()._cuDNNHandle,
                             CUDNN_BATCHNORM_PER_ACTIVATION,
@@ -937,8 +937,6 @@ void NNLayer::ForwardPropagateFullyConnected(uint32_t position, uint32_t batch, 
                     _pbUnit.swap(_pbUnitBN);
                     ++_bnCalls;
                 } else {
-                    float alpha = 1;
-                    float beta = 0;
                     cudnnStatus_t cudnnStatus = cudnnBatchNormalizationForwardInference(
                             getGpu()._cuDNNHandle,
                             CUDNN_BATCHNORM_PER_ACTIVATION,
@@ -1262,8 +1260,8 @@ void NNLayer::ForwardPropagateConvolutional(uint32_t position, uint32_t batch, b
             {
                 float alpha = 1;
                 float beta = 0;
-               if (bTraining)
-               {
+                if (bTraining)
+                {
                     cudnnStatus_t cudnnStatus = cudnnBatchNormalizationForwardTraining(
                             getGpu()._cuDNNHandle,
                             CUDNN_BATCHNORM_SPATIAL,
@@ -1287,8 +1285,6 @@ void NNLayer::ForwardPropagateConvolutional(uint32_t position, uint32_t batch, b
                     _pbUnit.swap(_pbUnitBN);
                     ++_bnCalls;
                 } else {
-                    float alpha = 1;
-                    float beta = 0;
                     cudnnStatus_t cudnnStatus = cudnnBatchNormalizationForwardInference(
                             getGpu()._cuDNNHandle,
                             CUDNN_BATCHNORM_SPATIAL,
