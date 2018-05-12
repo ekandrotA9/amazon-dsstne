@@ -13,38 +13,206 @@
 #include "GpuTypes.h"
 #include "NNTypes.h"
 #include <values.h>
+#include <time.h>       /* time */
 
+static std::map<string, TrainingMode> sOptimizationMap = {
+    {"sgd",         TrainingMode::SGD},
+    {"nesterov",    TrainingMode::Nesterov}
+};
 
+struct CDC
+{
+    string  networkFileName;    // NetCDF or JSON Object file name (required)
+    int     randomSeed;         // Initializes RNG for reproducible runs (default: sets from time of day)
+    Mode    mode;
 
-static const Mode mode = Mode::Training;
-//static const Mode mode = Mode::Prediction;
-//static const Mode mode = Mode::Validation;
+    // training params
+    int     epochs; // total epochs
+    int     batch;  // used by inference as well:  Mini-batch size (default 500, use 0 for entire dataset)
+    float   alpha;
+    float   lambda;
+    float   mu;
+    int     alphaInterval;      // number of epochs per update to alpha - so this is the number of epochs per DSSTNE call
+    float   alphaMultiplier;    // amount to scale alpha every alphaInterval number of epochs
+    TrainingMode  optimizer;
+    string  checkpointFileName;
+    bool    shuffleIndexes;
+    
+    string  dataFileName;
+
+    string          resultsFileName;
+};
+
+int LoadCDC_JSON(const string& fname, CDC &cdc)
+{
+    // now try to parse the passed in JSON file
+
+    Json::Reader reader;
+    Json::Value index;
+
+    std::ifstream stream(fname, std::ifstream::binary);
+    bool parsedSuccess = reader.parse(stream, index, false);
+    if (!parsedSuccess)
+    {
+        printf("LoadCDC_JSON: Failed to parse JSON file: %s, error: %s\n", fname.c_str(), reader.getFormattedErrorMessages().c_str());
+        return -1;
+    }
+
+    for (Json::ValueIterator itr = index.begin(); itr != index.end() ; itr++)
+    {
+        // Extract JSON object key/value pair
+        string name                         = itr.name();
+        std::transform(name.begin(), name.end(), name.begin(), ::tolower);
+        Json::Value key                     = itr.key();
+        Json::Value value                   = *itr;
+        string vstring                      = value.isString() ? value.asString() : "";
+        std::transform(vstring.begin(), vstring.end(), vstring.begin(), ::tolower);
+
+        if (name.compare("version") == 0)
+        {
+            float version = value.asFloat();
+            // we onlyt have this first version, but we will have future versions, then we will
+            // need to do something, until then noop
+        }
+        else if (name.compare("network") == 0)
+            cdc.networkFileName = value.asString();
+        else if (name.compare("data") == 0)
+            cdc.dataFileName = value.asString();
+        else if (name.compare("results") == 0)
+            cdc.resultsFileName = value.asString();
+        else if (name.compare("randomseed") == 0)
+            cdc.randomSeed = value.asInt();
+        else if (name.compare("command") == 0)
+        {
+            if (vstring.compare("train") ==0)
+                cdc.mode = Mode::Training;
+            else if (vstring.compare("predict"))
+                cdc.mode = Mode::Prediction;
+            else if (vstring.compare("validate"))
+                cdc.mode = Mode::Validation;
+            else
+            {
+                printf("*** LoadCDC_JSON: Command unknown:  %s\n", vstring.c_str());
+                return -1;
+            }
+        }
+        else if (name.compare("trainingparameters") == 0)
+        {
+            for (Json::ValueIterator pitr = value.begin(); pitr != value.end() ; pitr++)
+            {
+                string pname                = pitr.name();
+                std::transform(pname.begin(), pname.end(), pname.begin(), ::tolower);
+                Json::Value pkey            = pitr.key();
+                Json::Value pvalue          = *pitr;
+                if (pname.compare("epochs") == 0)
+                    cdc.epochs = pvalue.asInt();
+                else if (pname.compare("alpha") == 0)
+                    cdc.alpha = pvalue.asFloat();
+                else if (pname.compare("alphainterval") == 0)
+                    cdc.alphaInterval = pvalue.asFloat();
+                else if (pname.compare("alphamultiplier") == 0)
+                    cdc.alphaMultiplier = pvalue.asFloat();
+                else if (pname.compare("mu") == 0)
+                    cdc.mu = pvalue.asFloat();
+                else if (pname.compare("lambda") == 0)
+                    cdc.lambda = pvalue.asFloat();
+                else if (pname.compare("optimizer") ==0)
+                {
+                    string pstring = pvalue.isString() ? pvalue.asString() : "";
+                    std::transform(pstring.begin(), pstring.end(), pstring.begin(), ::tolower);
+                    auto it = sOptimizationMap.find(pstring);
+                    if (it != sOptimizationMap.end())
+                        cdc.optimizer = it->second;
+                    else
+                    {
+                        printf("LoadCDC_JSON: Invalid TrainingParameter Optimizer: %s\n", pstring.c_str());
+                        return -1;
+                    }
+                }
+                else {
+                    name = pitr.name();
+                    printf("LoadCDC_JSON: Invalid TrainingParameter: %s\n", name.c_str());
+                    return -1;
+                }
+            }
+        }
+        else
+        {
+            printf("*** LoadCDC_JSON: Unknown keyword:  %s\n", name.c_str());
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
 
 int main(int argc, char** argv)
 {
 
     // Initialize GPU network
     getGpu().Startup(argc, argv); 
-    getGpu().SetRandomSeed(12345ull);
+
+    CDC     cdc;
+    // first set default values, which can then be overridden by loaded values
+    cdc.randomSeed = time(NULL);
+    cdc.alphaInterval = 0;
+    cdc.alphaMultiplier = 0.5f;
+    cdc.batch = 1024;
+    cdc.checkpointFileName = "check";
+    cdc.shuffleIndexes = false;
+    cdc.resultsFileName = "network.nc";
+    cdc.alpha = 0.1f;
+    cdc.lambda = 0.001f;
+    cdc.mu = 0.9f;
+    cdc.optimizer = TrainingMode::SGD;
+
+    if (argc == 2)
+    {
+        int err = LoadCDC_JSON(argv[1], cdc);
+        if (err != 0)
+        {
+            printf("*** Error, %s could parse CDC file %s\n", argv[0], argv[1]);
+            return -1;
+        }
+        // if they want a constant alpha, then set up the other variables to make it so
+        if (cdc.alphaInterval == 0)
+        {
+            cdc.alphaInterval = 20;
+            cdc.alphaMultiplier = 1;
+        }
+    }
+    else
+    {
+        cdc.mode = Prediction;
+        cdc.optimizer = TrainingMode::Nesterov;
+        cdc.networkFileName = "network.nc";
+        cdc.alphaInterval = 20;
+        cdc.alphaMultiplier = 0.8f;
+        cdc.alpha = 0.025f;
+        cdc.lambda = 0.0001f;
+        cdc.mu = 0.5f;
+        cdc.randomSeed = 12345;
+        cdc.epochs = 60;
+        cdc.dataFileName = "../../data/data_test.nc";
+    }
+    
+    getGpu().SetRandomSeed(cdc.randomSeed);
 
     // Create Neural network
-    int batch               = 1024;
-    int total_epochs        = 60;
-    int training_epochs     = 20;
-    int epochs              = 0;
-    float alpha             = 0.025f;
-    float lambda            = 0.0001f;
+    //int batch               = 1024;
+    //int total_epochs        = 60;
+    //int training_epochs     = 20;
+    //float alpha             = 0.025f;
+    //float lambda            = 0.0001f;
     float lambda1           = 0.0f;
-    float mu                = 0.5f;
+    //float mu                = 0.5f;
     float mu1               = 0.0f;
     NNNetwork* pNetwork;
 
     // Load training data
     vector <NNDataSetBase*> vDataSet;
-    if (mode == Mode::Training)
-        vDataSet = LoadNetCDF("../../data/data_training.nc");
-    else
-        vDataSet = LoadNetCDF("../../data/data_test.nc");
+    vDataSet = LoadNetCDF(cdc.dataFileName);
 
 #if 0        
     vector<tuple<uint64_t, uint64_t> > vMemory = vDataSet[0]->getMemoryUsage();
@@ -54,15 +222,10 @@ int main(int argc, char** argv)
     exit(-1);
 #endif    
     // Create neural network
-    if (argc < 2)
-    {
-        if (mode != Prediction)
-            pNetwork = LoadNeuralNetworkJSON("config.json", batch, vDataSet);
-        else
-            pNetwork = LoadNeuralNetworkNetCDF("network.nc", batch);
-    }
+    if (cdc.mode == Prediction)
+        pNetwork = LoadNeuralNetworkNetCDF(cdc.networkFileName, cdc.batch);
     else
-        pNetwork = LoadNeuralNetworkNetCDF(argv[1], batch);
+        pNetwork = LoadNeuralNetworkJSON(cdc.networkFileName, cdc.batch, vDataSet);
  
     // Dump memory usage
     int totalGPUMemory;
@@ -71,24 +234,26 @@ int main(int argc, char** argv)
     cout << "GPU Memory Usage: " << totalGPUMemory << " KB" << endl;
     cout << "CPU Memory Usage: " << totalCPUMemory << " KB" << endl;
     pNetwork->LoadDataSets(vDataSet);
-    pNetwork->SetCheckpoint("check", 1);
+    pNetwork->SetCheckpoint(cdc.checkpointFileName, 1);
 
     // Train, validate or predict based on operating mode
-    if (mode == Mode::Validation)
+    if (cdc.mode == Mode::Validation)
     {
         pNetwork->SetTrainingMode(Nesterov);
         pNetwork->Validate();
     }
-    else if (mode == Mode::Training)
+    else if (cdc.mode == Training)
     {
-        pNetwork->SetTrainingMode(Nesterov);
-        while (epochs < total_epochs)
+        pNetwork->SetTrainingMode(cdc.optimizer);
+        float alpha = cdc.alpha;    // alpha gets modified in the loop, so use a copy of it
+        int epochs              = 0;
+        while (epochs < cdc.epochs)
         {
             //float margin        = (float)phase * 0.01f;
             //pNetwork->SetSMCE(1.0f - margin, margin, 30.0f, 1.0f); 
-            pNetwork->Train(training_epochs, alpha, lambda, lambda1, mu, mu1);
-            alpha              *= 0.8f;
-            epochs             += training_epochs;
+            pNetwork->Train(cdc.alphaInterval, alpha, cdc.lambda, lambda1, cdc.mu, mu1);
+            alpha              *= cdc.alphaMultiplier;
+            epochs             += cdc.alphaInterval;
         }
         
         // Save final Neural network
@@ -124,6 +289,10 @@ int main(int argc, char** argv)
             printf("Unable to find output dataset, exiting.\n");
             exit(-1);
         }
+
+
+int batch = cdc.batch;  // ek just here to write the code, change to cdc.batch
+
        
         vector<NNFloat> vPrecision(K);
         vector<NNFloat> vRecall(K);
@@ -311,8 +480,8 @@ int main(int argc, char** argv)
     }
     
     // Save Neural network
-    if (mode == Mode::Training)
-        pNetwork->SaveNetCDF("network.nc");
+    // saved above  if (cdc.mode == Training)
+    //    pNetwork->SaveNetCDF("network.nc");
     delete pNetwork;
 
     // Delete datasets
