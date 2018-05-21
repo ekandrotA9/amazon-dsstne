@@ -14,7 +14,7 @@
 #include "NNTypes.h"
 #include <values.h>
 #include <time.h>       /* time */
-#include "cdc.h"
+#include "cdl.h"
 
 
 
@@ -24,51 +24,34 @@ int main(int argc, char** argv)
     // Initialize GPU network
     getGpu().Startup(argc, argv); 
 
-    CDC     cdc;
-    // first set default values, which can then be overridden by loaded values
-    cdc.randomSeed = time(NULL);
-    cdc.alphaInterval = 0;
-    cdc.alphaMultiplier = 0.5f;
-    cdc.batch = 1024;
-    cdc.checkpointFileName = "check";
-    cdc.shuffleIndexes = false;
-    cdc.resultsFileName = "network.nc";
-    cdc.alpha = 0.1f;
-    cdc.lambda = 0.001f;
-    cdc.mu = 0.9f;
-    cdc.optimizer = TrainingMode::SGD;
+    CDC     cdl;
 
     if (argc == 2)
     {
-        int err = cdc.Load_JSON(argv[1]);
+        int err = cdl.Load_JSON(argv[1]);
         if (err != 0)
         {
             printf("*** Error, %s could parse CDC file %s\n", argv[0], argv[1]);
             return -1;
         }
-        // if they want a constant alpha, then set up the other variables to make it so
-        if (cdc.alphaInterval == 0)
-        {
-            cdc.alphaInterval = 20;
-            cdc.alphaMultiplier = 1;
-        }
     }
     else
     {
-        cdc.mode = Prediction;
-        cdc.optimizer = TrainingMode::Nesterov;
-        cdc.networkFileName = "network.nc";
-        cdc.alphaInterval = 20;
-        cdc.alphaMultiplier = 0.8f;
-        cdc.alpha = 0.025f;
-        cdc.lambda = 0.0001f;
-        cdc.mu = 0.5f;
-        cdc.randomSeed = 12345;
-        cdc.epochs = 60;
-        cdc.dataFileName = "../../data/data_test.nc";
+        // if no cdl file specified, set the values that were default before cdcd-update-checkin
+        cdl.mode = Prediction;
+        cdl.optimizer = TrainingMode::Nesterov;
+        cdl.networkFileName = "network.nc";
+        cdl.alphaInterval = 20;
+        cdl.alphaMultiplier = 0.8f;
+        cdl.alpha = 0.025f;
+        cdl.lambda = 0.0001f;
+        cdl.mu = 0.5f;
+        cdl.randomSeed = 12345;
+        cdl.epochs = 60;
+        cdl.dataFileName = "../../data/data_test.nc";
     }
     
-    getGpu().SetRandomSeed(cdc.randomSeed);
+    getGpu().SetRandomSeed(cdl.randomSeed);
 
     // Create Neural network
     //int batch               = 1024;
@@ -83,7 +66,7 @@ int main(int argc, char** argv)
 
     // Load training data
     vector <NNDataSetBase*> vDataSet;
-    vDataSet = LoadNetCDF(cdc.dataFileName);
+    vDataSet = LoadNetCDF(cdl.dataFileName);
 
 #if 0        
     vector<tuple<uint64_t, uint64_t> > vMemory = vDataSet[0]->getMemoryUsage();
@@ -93,10 +76,10 @@ int main(int argc, char** argv)
     exit(-1);
 #endif    
     // Create neural network
-    if (cdc.mode == Prediction)
-        pNetwork = LoadNeuralNetworkNetCDF(cdc.networkFileName, cdc.batch);
+    if (cdl.mode == Prediction)
+        pNetwork = LoadNeuralNetworkNetCDF(cdl.networkFileName, cdl.batch);
     else
-        pNetwork = LoadNeuralNetworkJSON(cdc.networkFileName, cdc.batch, vDataSet);
+        pNetwork = LoadNeuralNetworkJSON(cdl.networkFileName, cdl.batch, vDataSet);
  
     // Dump memory usage
     int totalGPUMemory;
@@ -105,30 +88,30 @@ int main(int argc, char** argv)
     cout << "GPU Memory Usage: " << totalGPUMemory << " KB" << endl;
     cout << "CPU Memory Usage: " << totalCPUMemory << " KB" << endl;
     pNetwork->LoadDataSets(vDataSet);
-    pNetwork->SetCheckpoint(cdc.checkpointFileName, 1);
+    pNetwork->SetCheckpoint(cdl.checkpointFileName, 1);
 
     // Train, validate or predict based on operating mode
-    if (cdc.mode == Mode::Validation)
+    if (cdl.mode == Mode::Validation)
     {
         pNetwork->SetTrainingMode(Nesterov);
         pNetwork->Validate();
     }
-    else if (cdc.mode == Training)
+    else if (cdl.mode == Training)
     {
-        pNetwork->SetTrainingMode(cdc.optimizer);
-        float alpha = cdc.alpha;    // alpha gets modified in the loop, so use a copy of it
+        pNetwork->SetTrainingMode(cdl.optimizer);
+        float alpha = cdl.alpha;    // alpha gets modified in the loop, so use a copy of it
         int epochs              = 0;
-        while (epochs < cdc.epochs)
+        while (epochs < cdl.epochs)
         {
             //float margin        = (float)phase * 0.01f;
             //pNetwork->SetSMCE(1.0f - margin, margin, 30.0f, 1.0f); 
-            pNetwork->Train(cdc.alphaInterval, alpha, cdc.lambda, lambda1, cdc.mu, mu1);
-            alpha              *= cdc.alphaMultiplier;
-            epochs             += cdc.alphaInterval;
+            pNetwork->Train(cdl.alphaInterval, alpha, cdl.lambda, lambda1, cdl.mu, mu1);
+            alpha              *= cdl.alphaMultiplier;
+            epochs             += cdl.alphaInterval;
         }
         
         // Save final Neural network
-        pNetwork->SaveNetCDF("network.nc");
+        pNetwork->SaveNetCDF(cdl.resultsFileName);
     }
     else
     {
@@ -162,7 +145,7 @@ int main(int argc, char** argv)
         }
 
 
-int batch = cdc.batch;  // ek just here to write the code, change to cdc.batch
+int batch = cdl.batch;  // ek just here to write the code, change to cdl.batch
 
        
         vector<NNFloat> vPrecision(K);
@@ -351,7 +334,7 @@ int batch = cdc.batch;  // ek just here to write the code, change to cdc.batch
     }
     
     // Save Neural network
-    // saved above  if (cdc.mode == Training)
+    // saved above  if (cdl.mode == Training)
     //    pNetwork->SaveNetCDF("network.nc");
     delete pNetwork;
 

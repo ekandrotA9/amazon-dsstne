@@ -2,9 +2,9 @@
 #include "NNTypes.h"
 
 
-struct CDC
+struct CDL
 {
-    CDC();
+    CDL();
     int Load_JSON(const string& fname);
 
 

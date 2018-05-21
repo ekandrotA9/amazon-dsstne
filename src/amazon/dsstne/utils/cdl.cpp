@@ -1,6 +1,6 @@
 #include "GpuTypes.h"
 #include "NNTypes.h"
-#include "cdc.h"
+#include "cdl.h"
 
 static std::map<string, TrainingMode> sOptimizationMap = {
     {"sgd",         TrainingMode::SGD},
@@ -8,7 +8,7 @@ static std::map<string, TrainingMode> sOptimizationMap = {
 };
 
 
-CDC::CDC()
+CDL::CDL()
 {
     randomSeed = time(NULL);
     alphaInterval = 0;
@@ -24,8 +24,13 @@ CDC::CDC()
 }
 
 
-int CDC::Load_JSON(const string& fname)
+int CDL::Load_JSON(const string& fname)
 {
+    // flags for mandatory values - check to make sure they have been set during load
+    // overall flags
+    bool networkSet=false, commandSet=false, dataSet=false;
+    // flags for when in training mode
+
     Json::Reader reader;
     Json::Value index;
 
@@ -33,7 +38,7 @@ int CDC::Load_JSON(const string& fname)
     bool parsedSuccess = reader.parse(stream, index, false);
     if (!parsedSuccess)
     {
-        printf("CDC::Load_JSON: Failed to parse JSON file: %s, error: %s\n", fname.c_str(), reader.getFormattedErrorMessages().c_str());
+        printf("CDL::Load_JSON: Failed to parse JSON file: %s, error: %s\n", fname.c_str(), reader.getFormattedErrorMessages().c_str());
         return -1;
     }
 
@@ -71,7 +76,7 @@ int CDC::Load_JSON(const string& fname)
                 mode = Mode::Validation;
             else
             {
-                printf("*** CDC::Load_JSON: Command unknown:  %s\n", vstring.c_str());
+                printf("*** CDL::Load_JSON: Command unknown:  %s\n", vstring.c_str());
                 return -1;
             }
         }
@@ -104,22 +109,30 @@ int CDC::Load_JSON(const string& fname)
                         optimizer = it->second;
                     else
                     {
-                        printf("CDC::Load_JSON: Invalid TrainingParameter Optimizer: %s\n", pstring.c_str());
+                        printf("CDL::Load_JSON: Invalid TrainingParameter Optimizer: %s\n", pstring.c_str());
                         return -1;
                     }
                 }
                 else {
                     name = pitr.name();
-                    printf("CDC::Load_JSON: Invalid TrainingParameter: %s\n", name.c_str());
+                    printf("CDL::Load_JSON: Invalid TrainingParameter: %s\n", name.c_str());
                     return -1;
                 }
             }
         }
         else
         {
-            printf("*** CDC::Load_JSON: Unknown keyword:  %s\n", name.c_str());
+            printf("*** CDL::Load_JSON: Unknown keyword:  %s\n", name.c_str());
             return -1;
         }
+    }
+
+    // alphaInterval of zero is specified to mean a constant alpha, so
+    // if they want a constant alpha, then set up the other variables to make it so
+    if (alphaInterval == 0)
+    {
+        alphaInterval = 20;
+        alphaMultiplier = 1;
     }
 
     return 0;
