@@ -14,137 +14,8 @@
 #include "NNTypes.h"
 #include <values.h>
 #include <time.h>       /* time */
+#include "cdc.h"
 
-static std::map<string, TrainingMode> sOptimizationMap = {
-    {"sgd",         TrainingMode::SGD},
-    {"nesterov",    TrainingMode::Nesterov}
-};
-
-struct CDC
-{
-    string  networkFileName;    // NetCDF or JSON Object file name (required)
-    int     randomSeed;         // Initializes RNG for reproducible runs (default: sets from time of day)
-    Mode    mode;
-
-    // training params
-    int     epochs; // total epochs
-    int     batch;  // used by inference as well:  Mini-batch size (default 500, use 0 for entire dataset)
-    float   alpha;
-    float   lambda;
-    float   mu;
-    int     alphaInterval;      // number of epochs per update to alpha - so this is the number of epochs per DSSTNE call
-    float   alphaMultiplier;    // amount to scale alpha every alphaInterval number of epochs
-    TrainingMode  optimizer;
-    string  checkpointFileName;
-    bool    shuffleIndexes;
-    
-    string  dataFileName;
-
-    string          resultsFileName;
-};
-
-int LoadCDC_JSON(const string& fname, CDC &cdc)
-{
-    // now try to parse the passed in JSON file
-
-    Json::Reader reader;
-    Json::Value index;
-
-    std::ifstream stream(fname, std::ifstream::binary);
-    bool parsedSuccess = reader.parse(stream, index, false);
-    if (!parsedSuccess)
-    {
-        printf("LoadCDC_JSON: Failed to parse JSON file: %s, error: %s\n", fname.c_str(), reader.getFormattedErrorMessages().c_str());
-        return -1;
-    }
-
-    for (Json::ValueIterator itr = index.begin(); itr != index.end() ; itr++)
-    {
-        // Extract JSON object key/value pair
-        string name                         = itr.name();
-        std::transform(name.begin(), name.end(), name.begin(), ::tolower);
-        Json::Value key                     = itr.key();
-        Json::Value value                   = *itr;
-        string vstring                      = value.isString() ? value.asString() : "";
-        std::transform(vstring.begin(), vstring.end(), vstring.begin(), ::tolower);
-
-        if (name.compare("version") == 0)
-        {
-            float version = value.asFloat();
-            // we onlyt have this first version, but we will have future versions, then we will
-            // need to do something, until then noop
-        }
-        else if (name.compare("network") == 0)
-            cdc.networkFileName = value.asString();
-        else if (name.compare("data") == 0)
-            cdc.dataFileName = value.asString();
-        else if (name.compare("results") == 0)
-            cdc.resultsFileName = value.asString();
-        else if (name.compare("randomseed") == 0)
-            cdc.randomSeed = value.asInt();
-        else if (name.compare("command") == 0)
-        {
-            if (vstring.compare("train") ==0)
-                cdc.mode = Mode::Training;
-            else if (vstring.compare("predict"))
-                cdc.mode = Mode::Prediction;
-            else if (vstring.compare("validate"))
-                cdc.mode = Mode::Validation;
-            else
-            {
-                printf("*** LoadCDC_JSON: Command unknown:  %s\n", vstring.c_str());
-                return -1;
-            }
-        }
-        else if (name.compare("trainingparameters") == 0)
-        {
-            for (Json::ValueIterator pitr = value.begin(); pitr != value.end() ; pitr++)
-            {
-                string pname                = pitr.name();
-                std::transform(pname.begin(), pname.end(), pname.begin(), ::tolower);
-                Json::Value pkey            = pitr.key();
-                Json::Value pvalue          = *pitr;
-                if (pname.compare("epochs") == 0)
-                    cdc.epochs = pvalue.asInt();
-                else if (pname.compare("alpha") == 0)
-                    cdc.alpha = pvalue.asFloat();
-                else if (pname.compare("alphainterval") == 0)
-                    cdc.alphaInterval = pvalue.asFloat();
-                else if (pname.compare("alphamultiplier") == 0)
-                    cdc.alphaMultiplier = pvalue.asFloat();
-                else if (pname.compare("mu") == 0)
-                    cdc.mu = pvalue.asFloat();
-                else if (pname.compare("lambda") == 0)
-                    cdc.lambda = pvalue.asFloat();
-                else if (pname.compare("optimizer") ==0)
-                {
-                    string pstring = pvalue.isString() ? pvalue.asString() : "";
-                    std::transform(pstring.begin(), pstring.end(), pstring.begin(), ::tolower);
-                    auto it = sOptimizationMap.find(pstring);
-                    if (it != sOptimizationMap.end())
-                        cdc.optimizer = it->second;
-                    else
-                    {
-                        printf("LoadCDC_JSON: Invalid TrainingParameter Optimizer: %s\n", pstring.c_str());
-                        return -1;
-                    }
-                }
-                else {
-                    name = pitr.name();
-                    printf("LoadCDC_JSON: Invalid TrainingParameter: %s\n", name.c_str());
-                    return -1;
-                }
-            }
-        }
-        else
-        {
-            printf("*** LoadCDC_JSON: Unknown keyword:  %s\n", name.c_str());
-            return -1;
-        }
-    }
-
-    return 0;
-}
 
 
 int main(int argc, char** argv)
@@ -169,7 +40,7 @@ int main(int argc, char** argv)
 
     if (argc == 2)
     {
-        int err = LoadCDC_JSON(argv[1], cdc);
+        int err = cdc.Load_JSON(argv[1]);
         if (err != 0)
         {
             printf("*** Error, %s could parse CDC file %s\n", argv[0], argv[1]);
