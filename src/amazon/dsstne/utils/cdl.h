@@ -8,25 +8,24 @@ struct CDL
     int Load_JSON(const string& fname);
 
 
-    std::string  networkFileName;    // NetCDF or JSON Object file name (required)
-    int     randomSeed;         // Initializes RNG for reproducible runs (default: sets from time of day)
-    Mode    mode;
+    std::string     _networkFileName;    // NetCDF or JSON Object file name (required)
+    int             _randomSeed;         // Initializes RNG for reproducible runs (default: sets from time of day)
+    Mode            _mode;
+    std::string     _dataFileName;
 
     // training params
-    int     epochs; // total epochs
-    int     batch;  // used by inference as well:  Mini-batch size (default 500, use 0 for entire dataset)
-    float   alpha;
-    float   lambda;
-    float   mu;
-    int     alphaInterval;      // number of epochs per update to alpha - so this is the number of epochs per DSSTNE call
-    float   alphaMultiplier;    // amount to scale alpha every alphaInterval number of epochs
-    TrainingMode  optimizer;
-    std::string  checkpointFileName;
-    bool    shuffleIndexes;
-
-    std::string     dataFileName;
-
-    std::string     resultsFileName;
+    int             _epochs; // total epochs
+    int             _batch;  // used by inference as well:  Mini-batch size (default 500, use 0 for entire dataset)
+    float           _alpha;
+    float           _lambda;
+    float           _mu;
+    int             _alphaInterval;      // number of epochs per update to alpha - so this is the number of epochs per DSSTNE call
+    float           _alphaMultiplier;    // amount to scale alpha every alphaInterval number of epochs
+    TrainingMode    _optimizer;
+    std::string     _checkpointFileName;
+    int             _checkpointInterval;
+    bool            _shuffleIndexes;
+    std::string     _resultsFileName;
 };
 
 

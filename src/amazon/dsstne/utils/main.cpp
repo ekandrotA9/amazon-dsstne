@@ -24,7 +24,7 @@ int main(int argc, char** argv)
     // Initialize GPU network
     getGpu().Startup(argc, argv); 
 
-    CDC     cdl;
+    CDL     cdl;
 
     if (argc == 2)
     {
@@ -38,20 +38,20 @@ int main(int argc, char** argv)
     else
     {
         // if no cdl file specified, set the values that were default before cdcd-update-checkin
-        cdl.mode = Prediction;
-        cdl.optimizer = TrainingMode::Nesterov;
-        cdl.networkFileName = "network.nc";
-        cdl.alphaInterval = 20;
-        cdl.alphaMultiplier = 0.8f;
-        cdl.alpha = 0.025f;
-        cdl.lambda = 0.0001f;
-        cdl.mu = 0.5f;
-        cdl.randomSeed = 12345;
-        cdl.epochs = 60;
-        cdl.dataFileName = "../../data/data_test.nc";
+        cdl._mode = Prediction;
+        cdl._optimizer = TrainingMode::Nesterov;
+        cdl._networkFileName = "network.nc";
+        cdl._alphaInterval = 20;
+        cdl._alphaMultiplier = 0.8f;
+        cdl._alpha = 0.025f;
+        cdl._lambda = 0.0001f;
+        cdl._mu = 0.5f;
+        cdl._randomSeed = 12345;
+        cdl._epochs = 60;
+        cdl._dataFileName = "../../data/data_test.nc";
     }
     
-    getGpu().SetRandomSeed(cdl.randomSeed);
+    getGpu().SetRandomSeed(cdl._randomSeed);
 
     // Create Neural network
     //int batch               = 1024;
@@ -66,7 +66,7 @@ int main(int argc, char** argv)
 
     // Load training data
     vector <NNDataSetBase*> vDataSet;
-    vDataSet = LoadNetCDF(cdl.dataFileName);
+    vDataSet = LoadNetCDF(cdl._dataFileName);
 
 #if 0        
     vector<tuple<uint64_t, uint64_t> > vMemory = vDataSet[0]->getMemoryUsage();
@@ -76,10 +76,10 @@ int main(int argc, char** argv)
     exit(-1);
 #endif    
     // Create neural network
-    if (cdl.mode == Prediction)
-        pNetwork = LoadNeuralNetworkNetCDF(cdl.networkFileName, cdl.batch);
+    if (cdl._mode == Prediction)
+        pNetwork = LoadNeuralNetworkNetCDF(cdl._networkFileName, cdl._batch);
     else
-        pNetwork = LoadNeuralNetworkJSON(cdl.networkFileName, cdl.batch, vDataSet);
+        pNetwork = LoadNeuralNetworkJSON(cdl._networkFileName, cdl._batch, vDataSet);
  
     // Dump memory usage
     int totalGPUMemory;
@@ -88,30 +88,30 @@ int main(int argc, char** argv)
     cout << "GPU Memory Usage: " << totalGPUMemory << " KB" << endl;
     cout << "CPU Memory Usage: " << totalCPUMemory << " KB" << endl;
     pNetwork->LoadDataSets(vDataSet);
-    pNetwork->SetCheckpoint(cdl.checkpointFileName, 1);
+    pNetwork->SetCheckpoint(cdl._checkpointFileName, cdl._checkpointInterval);
 
     // Train, validate or predict based on operating mode
-    if (cdl.mode == Mode::Validation)
+    if (cdl._mode == Mode::Validation)
     {
         pNetwork->SetTrainingMode(Nesterov);
         pNetwork->Validate();
     }
-    else if (cdl.mode == Training)
+    else if (cdl._mode == Training)
     {
-        pNetwork->SetTrainingMode(cdl.optimizer);
-        float alpha = cdl.alpha;    // alpha gets modified in the loop, so use a copy of it
+        pNetwork->SetTrainingMode(cdl._optimizer);
+        float alpha = cdl._alpha;    // alpha gets modified in the loop, so use a copy of it
         int epochs              = 0;
-        while (epochs < cdl.epochs)
+        while (epochs < cdl._epochs)
         {
             //float margin        = (float)phase * 0.01f;
             //pNetwork->SetSMCE(1.0f - margin, margin, 30.0f, 1.0f); 
-            pNetwork->Train(cdl.alphaInterval, alpha, cdl.lambda, lambda1, cdl.mu, mu1);
-            alpha              *= cdl.alphaMultiplier;
-            epochs             += cdl.alphaInterval;
+            pNetwork->Train(cdl._alphaInterval, alpha, cdl._lambda, lambda1, cdl._mu, mu1);
+            alpha              *= cdl._alphaMultiplier;
+            epochs             += cdl._alphaInterval;
         }
         
         // Save final Neural network
-        pNetwork->SaveNetCDF(cdl.resultsFileName);
+        pNetwork->SaveNetCDF(cdl._resultsFileName);
     }
     else
     {
@@ -145,7 +145,7 @@ int main(int argc, char** argv)
         }
 
 
-int batch = cdl.batch;  // ek just here to write the code, change to cdl.batch
+int batch = cdl._batch;  // ek just here to write the code, change to cdl._batch
 
        
         vector<NNFloat> vPrecision(K);
@@ -334,7 +334,7 @@ int batch = cdl.batch;  // ek just here to write the code, change to cdl.batch
     }
     
     // Save Neural network
-    // saved above  if (cdl.mode == Training)
+    // saved above  if (cdl._mode == Training)
     //    pNetwork->SaveNetCDF("network.nc");
     delete pNetwork;
 
